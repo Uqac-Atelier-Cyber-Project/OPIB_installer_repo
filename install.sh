@@ -232,38 +232,28 @@ install_docker_compose() {
     return 0
 }
 
-install_nvidia_docker() {
-    local distribution; distribution=$(. /etc/os-release; printf "%s%s" "$ID" "$VERSION_ID")
-
-    if ! curl -fsSL https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add - >/dev/null 2>&1; then
-        printf "Échec de l'ajout de la clé GPG NVIDIA.\n" >&2
+install_ollama() {
+    printf "Installation d'Ollama...\n"
+    
+    # Vérifier si Ollama est déjà installé
+    if command -v ollama >/dev/null 2>&1; then
+        printf "Ollama est déjà installé.\n"
+        return 0
+    fi
+    
+    # Télécharger et installer Ollama
+    if ! curl -sSfL https://ollama.com/download.sh | sh; then
+        printf "Échec de l'installation d'Ollama.\n" >&2
         return 1
     fi
 
-    if ! curl -fsSL "https://nvidia.github.io/nvidia-docker/${distribution}/nvidia-docker.list" | tee /etc/apt/sources.list.d/nvidia-docker.list >/dev/null; then
-        printf "Échec de l'ajout du dépôt NVIDIA.\n" >&2
+    # Installer le modèle Ollama deepseekr1:14b
+    if ! ollama pull deepseek-r1:14b; then
+        printf "Échec du téléchargement du modèle deepseekr1:14b.\n" >&2
         return 1
-    fi
-
-    if ! apt update; then
-        printf "Échec lors de la mise à jour après ajout du dépôt NVIDIA.\n" >&2
-        return 1
-    fi
-
-    if ! apt install -y nvidia-container-toolkit; then
-        printf "Échec de l'installation de nvidia-container-toolkit.\n" >&2
-        return 1
-    fi
-
-    if systemctl is-active --quiet docker; then
-        systemctl restart docker || {
-            printf "Échec du redémarrage de Docker.\n" >&2
-            return 1
-        }
-        printf "Docker redémarré après installation NVIDIA.\n"
-    else
-        printf "Docker n'est pas actif, redémarrage ignoré.\n"
-    fi
+    fi    
+    printf "Ollama installé avec succès.\n"
+    return 0
 }
 
 download_github_packages() {
@@ -349,7 +339,7 @@ main() {
     validate_docker_installation || return 1
     configure_docker_user || return 1
     install_docker_compose || return 1
-    install_nvidia_docker || return 1
+    install_ollama || return 1
     download_github_packages || return 1
     printf "Installation terminée avec succès.\n"
 }

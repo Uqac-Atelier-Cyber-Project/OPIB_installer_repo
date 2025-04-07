@@ -12,26 +12,6 @@ services:
     restart: unless-stopped
     networks:
       - app-network
-
-  # Service Ollama
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama-service
-    ports:
-      - "11434:11434"  # Port par défaut d'Ollama
-    volumes:
-      - ollama-data:/root/.ollama  # Stockage persistant pour les modèles
-    restart: unless-stopped
-    networks:
-      - app-network
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]  # Utilise GPU si disponible
-    # Télécharge et prépare le modèle deepseekr1:14b au démarrage
     command: >
       sh -c "ollama serve &
              sleep 10 &&
