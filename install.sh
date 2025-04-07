@@ -7,7 +7,6 @@ IFS=$'\n\t'
 
 DEPENDENCIES=(
     openjdk-21-jdk
-    docker.io
     curl
     git
     g++
@@ -107,7 +106,64 @@ install_dependencies() {
     if ! apt install -y "${DEPENDENCIES[@]}"; then
         printf "Échec de l'installation des paquets.\n" >&2
         return 1
-    fi
+    }
+}
+
+install_docker() {
+    printf "Installation de Docker selon la méthode officielle...\n"
+    
+    # Installer les prérequis
+    apt-get update || {
+        printf "Échec de la mise à jour des paquets.\n" >&2
+        return 1
+    }
+    
+    apt-get install -y ca-certificates curl || {
+        printf "Échec de l'installation des prérequis pour Docker.\n" >&2
+        return 1
+    }
+    
+    # Créer le répertoire des clés
+    install -m 0755 -d /etc/apt/keyrings || {
+        printf "Échec de la création du répertoire des clés.\n" >&2
+        return 1
+    }
+    
+    # Télécharger la clé GPG officielle de Docker
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc || {
+        printf "Échec du téléchargement de la clé GPG de Docker.\n" >&2
+        return 1
+    }
+    
+    # Définir les bonnes permissions
+    chmod a+r /etc/apt/keyrings/docker.asc || {
+        printf "Échec de la modification des permissions de la clé.\n" >&2
+        return 1
+    }
+    
+    # Ajouter le dépôt Docker aux sources APT
+    echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+        $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+        tee /etc/apt/sources.list.d/docker.list > /dev/null || {
+        printf "Échec de l'ajout du dépôt Docker.\n" >&2
+        return 1
+    }
+    
+    # Mettre à jour les listes de paquets
+    apt-get update || {
+        printf "Échec de la mise à jour après l'ajout du dépôt Docker.\n" >&2
+        return 1
+    }
+    
+    # Installer les paquets Docker
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || {
+        printf "Échec de l'installation de Docker.\n" >&2
+        return 1
+    }
+    
+    printf "Docker installé avec succès.\n"
+    return 0
 }
 
 validate_docker_installation() {
@@ -289,6 +345,7 @@ main() {
     check_root || return 1
     update_system || return 1
     install_dependencies || return 1
+    install_docker || return 1
     validate_docker_installation || return 1
     configure_docker_user || return 1
     install_docker_compose || return 1
