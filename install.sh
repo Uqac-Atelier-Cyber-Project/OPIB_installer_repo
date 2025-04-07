@@ -343,6 +343,30 @@ download_github_packages() {
     return 0
 }
 
+configure_sudo_permissions() {
+    local current_user; current_user=$(logname)
+    local sudo_file="/etc/sudoers.d/opib-permissions"
+
+    printf "Configuration des permissions sudo sans mot de passe pour l'utilisateur %s...\n" "$current_user"
+
+    # Crée les règles sudo (exécuter les JARs et scripts Python sans mot de passe)
+    cat <<EOF > "$sudo_file"
+$current_user ALL=(ALL) NOPASSWD: /usr/bin/java -jar $JAR_DIR/*/*.jar
+$current_user ALL=(ALL) NOPASSWD: $PYTHON_DIR/venv/bin/python3
+EOF
+
+    # Appliquer les bons droits
+    chmod 0440 "$sudo_file" || {
+        printf "Échec de la modification des permissions sur le fichier sudoers.\n" >&2
+        return 1
+    }
+
+    printf "Permissions sudo configurées dans %s.\n" "$sudo_file"
+}
+
+
+
+
 # ======================== MAIN ========================
 
 main() {
@@ -356,6 +380,7 @@ main() {
     install_docker_compose || return 1
     install_ollama || return 1
     download_github_packages || return 1
+    configure_sudo_permissions || return 1
     printf "Installation terminée avec succès.\n"
 }
 
