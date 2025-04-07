@@ -30,10 +30,9 @@ DEPENDENCIES=(
     tshark
     bully
     cowpatty
-    pyrit
+    john
     hashcat
     hcxdumptool
-    hcxpcaptool
     jq
     unzip
     zip
