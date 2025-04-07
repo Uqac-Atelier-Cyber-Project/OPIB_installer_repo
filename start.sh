@@ -15,16 +15,14 @@ DOCKER_COMPOSE_FILE="docker-compose.yaml"
 
 # Liste ordonnée des JAR à démarrer
 JAR_PACKAGES=(
-    "back-for-front-0.0.1-SNAPSHOT.jar"
-    "scan-port-0.0.1-SNAPSHOT.jar"
-    "bruteforce-ssh-0.0.1-SNAPSHOT.jar"
-    "wifi-attack-0.0.1-SNAPSHOT.jar"
-    "analyse-cve-0.0.1-SNAPSHOT.jar"
-    "generate-report-0.0.1-SNAPSHOT.jar"
+    "opib-api/back-for-front-0.0.1-SNAPSHOT.jar"
+    "opib-scan-port/scan-port-0.0.1-SNAPSHOT.jar"
+    "opib-bruteforce-ssh/bruteforce-ssh-0.0.1-SNAPSHOT.jar"
+    "opib-bruteforce-wifi/wifi-attack-0.0.1-SNAPSHOT.jar"
+    "opib-analytise-cve/analyse-cve-0.0.1-SNAPSHOT.jar"
+    "opib-generate-report/generate-report-0.0.1-SNAPSHOT.jar"
 )
 
-# Options JVM pour les JAR
-JAVA_OPTS="-Xmx512m"
 
 # Commande pour démarrer le programme Python
 PYTHON_CMD="python main.py"
@@ -139,50 +137,34 @@ find_latest_jar() {
 }
 
 start_jar() {
-    local package_name="$1"
-    local package_dir="$JAR_DIR/$package_name"
-    local jar_file
+    local jar_path="$JAR_DIR/$1"
     
-    if [ ! -d "$package_dir" ]; then
-        log_message "Erreur: Le répertoire $package_dir n'existe pas."
+    if [ ! -f "$jar_path" ]; then
+        log_message "Erreur: Le fichier JAR $jar_path n'existe pas."
         return 1
     fi
     
-    jar_file=$(find_latest_jar "$package_dir")
-    
-    if [ -z "$jar_file" ]; then
-        log_message "Erreur: Aucun fichier JAR trouvé dans $package_dir."
-        return 1
-    fi
-    
-    log_message "Démarrage de $package_name ($jar_file)..."
+    log_message "Démarrage de $1 ($jar_path)..."
     
     # Créer un fichier de log spécifique pour chaque JAR
-    local log_file="$LOG_DIR/$package_name.log"
+    local log_file="$LOG_DIR/$(echo "$1" | tr '/' '_').log"
     
     # Vérifier s'il s'agit du JAR de génération de rapports et ajouter les paramètres de BDD si nécessaire
-    if [[ "$package_name" == "generate-report-0.0.1-SNAPSHOT.jar" ]]; then
-        log_message "Configuration des paramètres de base de données pour le générateur de rapports"
-        java $JAVA_OPTS \
-            -Dspring.datasource.url=jdbc:mysql://localhost:30037/mydatabase \
-            -Dspring.datasource.username=myuser \
-            -Dspring.datasource.password=secret \
-            -jar "$jar_file" > "$log_file" 2>&1 &
-    else
-        # Lancement standard pour les autres JARs
-        java $JAVA_OPTS -jar "$jar_file" > "$log_file" 2>&1 &
-    fi
+    
+    # Lancement standard pour les autres JARs
+    sudo java -jar "$jar_path" > "$log_file" 2>&1 &
+    
     
     local pid=$!
     PIDS+=($pid)
     
     # Vérifier que le processus a démarré correctement
     if ! ps -p $pid > /dev/null; then
-        log_message "Erreur: Le processus $package_name n'a pas démarré correctement."
+        log_message "Erreur: Le processus $1 n'a pas démarré correctement."
         return 1
     fi
     
-    log_message "$package_name démarré avec PID $pid."
+    log_message "$1 démarré avec PID $pid."
     
     # Attendre un moment pour s'assurer que le JAR est opérationnel
     # On vérifie les logs pour un message de démarrage réussi
@@ -195,15 +177,15 @@ start_jar() {
             is_ready=true
         else
             retry_count=$((retry_count + 1))
-            log_message "En attente du démarrage de $package_name... ($retry_count/$max_retries)"
+            log_message "En attente du démarrage de $1... ($retry_count/$max_retries)"
             sleep 10
         fi
     done
     
     if [ "$is_ready" = true ]; then
-        log_message "$package_name est prêt."
+        log_message "$1 est prêt."
     else
-        log_message "Avertissement: $package_name semble ne pas être complètement démarré après 2 minutes."
+        log_message "Avertissement: $1 semble ne pas être complètement démarré après 2 minutes."
         log_message "Continuer quand même? (y/n)"
         read -r response
         if [[ ! "$response" =~ ^[Yy]$ ]]; then
@@ -220,26 +202,40 @@ start_python() {
         log_message "Erreur: Le répertoire Python $PYTHON_DIR n'existe pas."
         return 1
     fi
-    
+
+    log_message "Vérification du port 8087..."
+    local pid_on_port=$(lsof -ti:8087)
+    if [ -n "$pid_on_port" ]; then
+        log_message "Un processus utilise le port 8087 (PID: $pid_on_port). Arrêt du processus..."
+        kill -9 "$pid_on_port" || {
+            log_message "Erreur: Impossible de tuer le processus sur le port 8087."
+            return 1
+        }
+    fi
+
     log_message "Démarrage du programme Python..."
-    
-    # Créer un fichier de log pour le programme Python
+
     local log_file="$LOG_DIR/python-tool.log"
-    
-    (cd "$PYTHON_DIR" && $PYTHON_CMD > "$log_file" 2>&1) &
+
+    if [ -f "$PYTHON_DIR/venv/bin/activate" ]; then
+        log_message "Activation de l'environnement virtuel Python..."
+        (cd "$PYTHON_DIR" && bash -c "source venv/bin/activate && $PYTHON_CMD" >> "$log_file" 2>&1) &
+    else
+        log_message "Erreur: Le fichier d'activation de l'environnement virtuel ($PYTHON_DIR/venv/bin/activate) est introuvable."
+        return 1
+    fi
+
     local pid=$!
     PIDS+=($pid)
-    
-    # Vérifier que le processus a démarré correctement
+
     if ! ps -p $pid > /dev/null; then
         log_message "Erreur: Le programme Python n'a pas démarré correctement."
         return 1
     fi
-    
+
     log_message "Programme Python démarré avec PID $pid."
     return 0
 }
-
 # ======================== MAIN ========================
 
 main() {

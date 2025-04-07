@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 services:
   # Service Vue.js
@@ -6,38 +6,29 @@ services:
     image: kiurow590/opib-vue-js-front:latest
     container_name: vuejs-container
     ports:
-      - "8090:8080"  # Adaptez selon le port de votre application Vue.js
+      - "8091:8080"  # Adaptez selon le port de votre application Vue.js
     volumes:
-      - données-externes:/app/public/pdf  # Monte le dossier XXX à l'extérieur
+      - data-externes:/app/public/pdf  # Monte le dossier XXX à l'extérieur
     restart: unless-stopped
     networks:
       - app-network
-    command: >
-      sh -c "ollama serve &
-             sleep 10 &&
-             ollama pull deepseekr1:14b &&
-             tail -f /dev/null"
-          
+
+  # Service MySQL
   mysql:
-    image: mysql:latest
-    container_name: mysql-db
-    restart: unless-stopped
+    image: 'mysql:latest'
     environment:
-      MYSQL_ROOT_PASSWORD: opib_password  # À remplacer par un mot de passe sécurisé
-      MYSQL_DATABASE: opib_db       # À remplacer par le nom de votre base
-      MYSQL_USER: opib_user                    # À remplacer par votre utilisateur
-      MYSQL_PASSWORD: opib_password            # À remplacer par un mot de passe sécurisé
+      - 'MYSQL_DATABASE=opibdb'
+      - 'MYSQL_PASSWORD=secret'
+      - 'MYSQL_ROOT_PASSWORD=verysecret'
+      - 'MYSQL_USER=myuser'
     ports:
-      - "30306:3306"
-    volumes:
-      - mysql-data:/var/lib/mysql              # Stockage persistant des données MySQL
+      - '30037:3306'
     networks:
       - app-network
 
 volumes:
   ollama-data:  # Volume pour les données Ollama et modèles
-  données-externes:  # Volume pour les données externes du frontend
-  mysql-data:   # Volume pour les données MySQL
+  data-externes:  # Volume pour les données externes du frontend
 
 networks:
   app-network:
