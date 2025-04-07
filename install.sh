@@ -242,7 +242,7 @@ install_ollama() {
     fi
     
     # Télécharger et installer Ollama
-    if ! curl -sSfL https://ollama.com/download.sh | sh; then
+    if ! curl -fsSL https://ollama.com/install.sh | sh; then
         printf "Échec de l'installation d'Ollama.\n" >&2
         return 1
     fi
