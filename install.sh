@@ -106,7 +106,7 @@ install_dependencies() {
     if ! apt install -y "${DEPENDENCIES[@]}"; then
         printf "Échec de l'installation des paquets.\n" >&2
         return 1
-    }
+    fi
 }
 
 install_docker() {
