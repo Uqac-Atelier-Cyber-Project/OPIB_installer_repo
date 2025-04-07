@@ -311,11 +311,26 @@ download_github_packages() {
     
     # Installer les dépendances Python si requirements.txt existe
     if [ -f "$PYTHON_DIR/requirements.txt" ]; then
-        printf "Installation des dépendances Python...\n"
-        pip3 install -r "$PYTHON_DIR/requirements.txt" || {
-            printf "Échec de l'installation des dépendances Python.\n" >&2
+        printf "Création d'un environnement virtuel Python...\n"
+        python3 -m venv "$PYTHON_DIR/venv" || {
+            printf "Échec de la création de l'environnement virtuel Python.\n" >&2
             return 1
         }
+
+        printf "Activation de l'environnement virtuel Python...\n"
+        source "$PYTHON_DIR/venv/bin/activate" || {
+            printf "Échec de l'activation de l'environnement virtuel Python.\n" >&2
+            return 1
+        }
+
+        printf "Installation des dépendances Python...\n"
+        "$PYTHON_DIR/venv/bin/pip" install -r "$PYTHON_DIR/requirements.txt" || {
+            printf "Échec de l'installation des dépendances Python.\n" >&2
+            deactivate
+            return 1
+        }
+
+        deactivate
     fi
     
     # Donner les permissions appropriées
