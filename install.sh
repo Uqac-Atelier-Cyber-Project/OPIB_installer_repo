@@ -291,6 +291,17 @@ download_github_packages() {
         fi
         
         printf "Package %s téléchargé avec succès.\n" "$jar_filename"
+
+        # Déplacer le fichier application.properties s'il existe dans le repo
+        local config_source="./$package_name/application.properties"
+        if [ -f "$config_source" ]; then
+            printf "Déplacement de %s vers %s...\n" "$config_source" "$package_dir"
+            cp "$config_source" "$package_dir/" || {
+                printf "Échec du déplacement de %s.\n" "$config_source" >&2
+                return 1
+            }
+        fi
+
     done
     
     # Cloner le programme Python
