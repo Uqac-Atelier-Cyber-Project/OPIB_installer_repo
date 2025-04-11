@@ -24,12 +24,12 @@ FOLDERS_JAR=(
 
 # Liste ordonnée des JAR à démarrer
 JAR_PACKAGES=(
-    "/back-for-front-0.0.1-SNAPSHOT.jar"
-    "/scan-port-0.0.1-SNAPSHOT.jar"
-    "/bruteforce-ssh-0.0.1-SNAPSHOT.jar"
-    "/wifi-attack-0.0.1-SNAPSHOT.jar"
-    "/analyse-cve-0.0.1-SNAPSHOT.jar"
-    "/generate-report-0.0.1-SNAPSHOT.jar"
+    "back-for-front-0.0.1-SNAPSHOT.jar"
+    "scan-port-0.0.1-SNAPSHOT.jar"
+    "bruteforce-ssh-0.0.1-SNAPSHOT.jar"
+    "wifi-attack-0.0.1-SNAPSHOT.jar"
+    "analyse-cve-0.0.1-SNAPSHOT.jar"
+    "generate-report-0.0.1-SNAPSHOT.jar"
 )
 
 
@@ -151,8 +151,9 @@ find_latest_jar() {
 start_jar() {
     local jar_folder="$1"
     local jar_file="$2"
-    local jar_path="$JAR_DIR/$jar_folder/$jar_file"
-    local config_file="$JAR_DIR/$jar_folder/application.properties"  # Chemin vers le fichier de configuration externe
+    local jar_dir="$JAR_DIR/$jar_folder"
+    local jar_path="$jar_dir/$jar_file"
+    local config_file="$jar_dir/application.properties"
 
     if [ ! -f "$jar_path" ]; then
         log_message "Erreur: Le fichier JAR $jar_path n'existe pas."
@@ -166,41 +167,29 @@ start_jar() {
 
     log_message "Démarrage de $1 ($jar_path) avec le fichier de configuration $config_file..."
     
-    # Créer un fichier de log spécifique pour chaque JAR
     local log_file="$LOG_DIR/$(echo "$1" | tr '/' '_').log"
-    
-    # Vérifier s'il s'agit du JAR de génération de rapports et ajouter les paramètres de BDD si nécessaire
-    # if [[ "$1" == "opib-generate-report/generate-report-0.0.1-SNAPSHOT.jar" || "$1" == "opib-api/back-for-front-0.0.1-SNAPSHOT.jar" ]]; then
-    #     log_message "Configuration des paramètres de base de données pour $1"
-    #     java -jar "$jar_path" \
-    #         spring.datasource.url=jdbc:mysql://localhost:30038/opibdb \
-    #         spring.datasource.username=myuser \
-    #         spring.datasource.password=secret > "$log_file" 2>&1 &
-    # else
-    #     # Lancement standard pour les autres JARs
-    #     java -jar "$jar_path" > "$log_file" 2>&1 &
-    # fi
-    # Lancement standard pour les autres JARs
-    java -jar "$jar_path"  > "$log_file" 2>&1 &
-    
-    
-    local pid=$!
+
+    (
+        cd "$jar_dir" || exit 1
+        java -jar "$jar_file" > "$log_file" 2>&1 &
+        echo $! > "$log_file.pid"
+    )
+
+    local pid=$(cat "$log_file.pid")
+    rm "$log_file.pid"
     PIDS+=($pid)
-    
-    # Vérifier que le processus a démarré correctement
+
     if ! ps -p $pid > /dev/null; then
         log_message "Erreur: Le processus $1 n'a pas démarré correctement."
         return 1
     fi
-    
+
     log_message "$1 démarré avec PID $pid."
-    
-    # Attendre un moment pour s'assurer que le JAR est opérationnel
-    # On vérifie les logs pour un message de démarrage réussi
+
     local retry_count=0
-    local max_retries=12  # 2 minutes max (10 sec * 12)
+    local max_retries=12
     local is_ready=false
-    
+
     while [ "$is_ready" = false ] && [ $retry_count -lt $max_retries ]; do
         if grep -q -E '(process running)' "$log_file"; then
             is_ready=true
@@ -210,7 +199,7 @@ start_jar() {
             sleep 10
         fi
     done
-    
+
     if [ "$is_ready" = true ]; then
         log_message "$1 est prêt."
     else
@@ -222,7 +211,7 @@ start_jar() {
             cleanup
         fi
     fi
-    
+
     return 0
 }
 
