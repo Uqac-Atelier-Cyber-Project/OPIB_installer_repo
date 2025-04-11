@@ -5,10 +5,12 @@ services:
   vuejs-app:
     image: kiurow590/opib-vue-js-front:latest
     container_name: vuejs-container
+    environment:
+      - 'VUE_APP_API=http://localhost:8090'  # URL de l'API
     ports:
-      - "8091:8080"  # Adaptez selon le port de votre application Vue.js
+      - "8091:80"  # Adaptez selon le port de votre application Vue.js
     volumes:
-      - data-externes:/app/public/pdf  # Monte le dossier XXX à l'extérieur
+      - ~/data-externes:/app/public/pdf  # Monte le dossier XXX à l'extérieur
     restart: unless-stopped
     networks:
       - app-network
@@ -23,12 +25,14 @@ services:
       - 'MYSQL_USER=myuser'
     ports:
       - '30037:3306'
+    volumes:
+      - mysql-data:/var/lib/mysql  # Volume pour persister les données MySQL
     networks:
       - app-network
 
 volumes:
-  ollama-data:  # Volume pour les données Ollama et modèles
   data-externes:  # Volume pour les données externes du frontend
+  mysql-data:  # Volume pour les données MySQL
 
 networks:
   app-network:

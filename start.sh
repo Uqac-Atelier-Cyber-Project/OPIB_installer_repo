@@ -13,14 +13,23 @@ PYTHON_DIR="$INSTALL_DIR/python-tool"
 # Chemin vers le fichier docker-compose.yml
 DOCKER_COMPOSE_FILE="docker-compose.yaml"
 
+FOLDERS_JAR=(
+    "opib-api"
+    "opib-scan-port"
+    "opib-bruteforce-ssh"
+    "opib-bruteforce-wifi"
+    "opib-analytise-cve"
+    "opib-generate-report"
+)
+
 # Liste ordonnée des JAR à démarrer
 JAR_PACKAGES=(
-    "opib-api/back-for-front-0.0.1-SNAPSHOT.jar"
-    "opib-scan-port/scan-port-0.0.1-SNAPSHOT.jar"
-    "opib-bruteforce-ssh/bruteforce-ssh-0.0.1-SNAPSHOT.jar"
-    "opib-bruteforce-wifi/wifi-attack-0.0.1-SNAPSHOT.jar"
-    "opib-analytise-cve/analyse-cve-0.0.1-SNAPSHOT.jar"
-    "opib-generate-report/generate-report-0.0.1-SNAPSHOT.jar"
+    "/back-for-front-0.0.1-SNAPSHOT.jar"
+    "/scan-port-0.0.1-SNAPSHOT.jar"
+    "/bruteforce-ssh-0.0.1-SNAPSHOT.jar"
+    "/wifi-attack-0.0.1-SNAPSHOT.jar"
+    "/analyse-cve-0.0.1-SNAPSHOT.jar"
+    "/generate-report-0.0.1-SNAPSHOT.jar"
 )
 
 
@@ -38,6 +47,8 @@ declare -a PIDS=()
 
 setup_log_dir() {
     mkdir -p "$LOG_DIR"
+    sudo chown -R "$USER:$USER" "$LOG_DIR"  # 👈 Ajout ici
+
     # Rotation des logs: on conserve le dernier log avec timestamp
     if [ -f "$MAIN_LOG" ]; then
         mv "$MAIN_LOG" "$LOG_DIR/opib-launcher-$(date +%Y%m%d-%H%M%S).log"
@@ -129,6 +140,7 @@ start_docker_compose() {
     done
     
     log_message "Tous les services Docker sont prêts."
+    sleep 10
 }
 
 find_latest_jar() {
@@ -137,22 +149,39 @@ find_latest_jar() {
 }
 
 start_jar() {
-    local jar_path="$JAR_DIR/$1"
-    
+    local jar_folder="$1"
+    local jar_file="$2"
+    local jar_path="$JAR_DIR/$jar_folder/$jar_file"
+    local config_file="$JAR_DIR/$jar_folder/application.properties"  # Chemin vers le fichier de configuration externe
+
     if [ ! -f "$jar_path" ]; then
         log_message "Erreur: Le fichier JAR $jar_path n'existe pas."
         return 1
     fi
-    
-    log_message "Démarrage de $1 ($jar_path)..."
+
+    if [ ! -f "$config_file" ]; then
+        log_message "Erreur: Le fichier de configuration $config_file n'existe pas."
+        return 1
+    fi
+
+    log_message "Démarrage de $1 ($jar_path) avec le fichier de configuration $config_file..."
     
     # Créer un fichier de log spécifique pour chaque JAR
     local log_file="$LOG_DIR/$(echo "$1" | tr '/' '_').log"
     
     # Vérifier s'il s'agit du JAR de génération de rapports et ajouter les paramètres de BDD si nécessaire
-    
+    # if [[ "$1" == "opib-generate-report/generate-report-0.0.1-SNAPSHOT.jar" || "$1" == "opib-api/back-for-front-0.0.1-SNAPSHOT.jar" ]]; then
+    #     log_message "Configuration des paramètres de base de données pour $1"
+    #     java -jar "$jar_path" \
+    #         spring.datasource.url=jdbc:mysql://localhost:30038/opibdb \
+    #         spring.datasource.username=myuser \
+    #         spring.datasource.password=secret > "$log_file" 2>&1 &
+    # else
+    #     # Lancement standard pour les autres JARs
+    #     java -jar "$jar_path" > "$log_file" 2>&1 &
+    # fi
     # Lancement standard pour les autres JARs
-    sudo java -jar "$jar_path" > "$log_file" 2>&1 &
+    java -jar "$jar_path"  > "$log_file" 2>&1 &
     
     
     local pid=$!
@@ -173,7 +202,7 @@ start_jar() {
     local is_ready=false
     
     while [ "$is_ready" = false ] && [ $retry_count -lt $max_retries ]; do
-        if grep -q -E '(started|ready|listening|initialization complete)' "$log_file"; then
+        if grep -q -E '(process running)' "$log_file"; then
             is_ready=true
         else
             retry_count=$((retry_count + 1))
@@ -246,9 +275,11 @@ main() {
     start_docker_compose
     
     # Démarrer les JAR dans l'ordre spécifié
-    for package in "${JAR_PACKAGES[@]}"; do
-        start_jar "$package" || {
-            log_message "Erreur lors du démarrage de $package. Arrêt du lancement."
+    for i in "${!JAR_PACKAGES[@]}"; do
+        local jar_file="${JAR_PACKAGES[$i]}"
+        local jar_folder="${FOLDERS_JAR[$i]}"
+        start_jar "$jar_folder" "$jar_file" || {
+            log_message "Erreur lors du démarrage de $jar_file. Arrêt du lancement."
             cleanup
         }
     done
