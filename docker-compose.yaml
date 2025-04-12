@@ -6,7 +6,7 @@ services:
     image: kiurow590/opib-vue-js-front:latest
     container_name: vuejs-container
     environment:
-      - 'VUE_APP_API=http://localhost:8090'  # URL de l'API
+      - 'API_URL=http://localhost:8090'  # URL de l'API
     ports:
       - "8091:80"  # Adaptez selon le port de votre application Vue.js
     volumes:

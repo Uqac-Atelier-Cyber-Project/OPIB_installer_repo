@@ -94,40 +94,67 @@ start_docker_compose() {
         log_message "Erreur: Le fichier docker-compose.yml n'existe pas à l'emplacement $DOCKER_COMPOSE_FILE"
         exit 1
     fi
-    
+
     log_message "Démarrage de Docker Compose..."
     docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
-    
-    # Attendre que tous les services Docker soient prêts
+
     log_message "Attente du démarrage de tous les services Docker..."
-    
+
     local services
     services=$(docker-compose -f "$DOCKER_COMPOSE_FILE" config --services)
-    
+
     for service in $services; do
         local is_ready=false
         local retry_count=0
         local max_retries=30  # 5 minutes max (10 sec * 30)
-        
+
+        local container_id
+        container_id=$(docker-compose -f "$DOCKER_COMPOSE_FILE" ps -q "$service")
+
+        if [ -z "$container_id" ]; then
+            log_message "Erreur: Impossible de récupérer l'ID du conteneur pour le service $service."
+            continue
+        fi
+
+        if ! docker inspect "$container_id" &>/dev/null; then
+            log_message "Erreur: Le conteneur $container_id pour le service $service n'existe pas ou n'est pas inspectable."
+            continue
+        fi
+
         while [ "$is_ready" = false ] && [ $retry_count -lt $max_retries ]; do
-            if docker-compose -f "$DOCKER_COMPOSE_FILE" ps "$service" | grep -q "Up"; then
-                local container_id
-                container_id=$(docker-compose -f "$DOCKER_COMPOSE_FILE" ps -q "$service")
-                
-                # Vérifier les logs pour des messages de démarrage
-                if docker logs "$container_id" 2>&1 | grep -q -E '(started|ready|listening|initialization complete)'; then
-                    log_message "Service $service démarré."
-                    is_ready=true
+            local status
+            status=$(docker inspect --format='{{.State.Status}}' "$container_id" 2>/dev/null)
+
+            if [ "$status" = "running" ]; then
+                local has_healthcheck
+                has_healthcheck=$(docker inspect --format='{{json .State.Health}}' "$container_id")
+
+                if [ "$has_healthcheck" != "null" ]; then
+                    local health_status
+                    health_status=$(docker inspect --format='{{.State.Health.Status}}' "$container_id")
+
+                    if [ "$health_status" = "healthy" ]; then
+                        log_message "Service $service est sain (healthy)."
+                        is_ready=true
+                        break
+                    fi
+                else
+                    # Fallback : analyse des logs
+                    if docker logs "$container_id" 2>&1 | grep -q -E '(started|ready|listening|Starting Nginx...)'; then
+                        log_message "Service $service semble prêt (via les logs)."
+                        is_ready=true
+                        break
+                    fi
                 fi
             fi
-            
+
             if [ "$is_ready" = false ]; then
                 retry_count=$((retry_count + 1))
                 log_message "En attente du service $service... ($retry_count/$max_retries)"
                 sleep 10
             fi
         done
-        
+
         if [ "$is_ready" = false ]; then
             log_message "Avertissement: Le service $service semble ne pas être complètement démarré après 5 minutes."
             log_message "Continuer quand même? (y/n)"
@@ -138,10 +165,11 @@ start_docker_compose() {
             fi
         fi
     done
-    
+
     log_message "Tous les services Docker sont prêts."
     sleep 10
 }
+
 
 find_latest_jar() {
     local package_dir="$1"
