@@ -10,7 +10,7 @@ services:
     ports:
       - "8091:80"  # Adaptez selon le port de votre application Vue.js
     volumes:
-      - ~/data-externes:/app/public/pdf  # Monte le dossier XXX à l'extérieur
+      - /root/data-externes:/usr/share/nginx/html/pdf  # Monte le dossier XXX à l'extérieur
     restart: unless-stopped
     networks:
       - app-network
