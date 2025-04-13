@@ -42,6 +42,7 @@ DEPENDENCIES=(
     lsb-release
     ca-certificates
     nmap
+    texlive-xetex
 )
 
 # Version de Docker Compose à installer (dernière version stable)
@@ -238,14 +239,14 @@ install_ollama() {
     # Vérifier si Ollama est déjà installé
     if command -v ollama >/dev/null 2>&1; then
         printf "Ollama est déjà installé.\n"
-        return 0
+    else
+        # Télécharger et installer Ollama
+        if ! curl -fsSL https://ollama.com/install.sh | sh; then
+            printf "Échec de l'installation d'Ollama.\n" >&2
+            return 1
+        fi
     fi
     
-    # Télécharger et installer Ollama
-    if ! curl -fsSL https://ollama.com/install.sh | sh; then
-        printf "Échec de l'installation d'Ollama.\n" >&2
-        return 1
-    fi
 
     # Installer le modèle Ollama deepseekr1:14b
     if ! ollama pull deepseek-r1:14b; then
